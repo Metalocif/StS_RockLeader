@@ -53,6 +53,11 @@ Meta_RockBoss = {
 }
 AddPawn("Meta_RockBoss") 
 
+function Meta_RockBoss:GetWeapon()  
+	--will use this later to make alternative behavior: if nothing to upgrade, explode?
+	return 1
+end
+
 
 Meta_RockBossSkill = Skill:new{
 	Name = "Empowering Pulse",
@@ -80,29 +85,45 @@ end
 
 function Meta_RockBossSkill:GetSkillEffect(p1,p2)
 	ret = SkillEffect()
-	--two parts: boost everything instantly, then queue a script that improves the weapons of Veks
-	--since this is technically a neutral unit, it should act last, therefore it doesn't need to worry about cancelling Vek actions
-	--somehow this 
-	-- for _, tile in ipairs(Board) do
-		-- local pawn = Board:GetPawn(tile)
-		-- if pawn and pawn:GetTeam() == TEAM_ENEMY then ret:AddScript(string.format("Board:GetPawn(%s):SetBoosted(true)", pawn:GetId())) end
-	-- end
-	-- ret:AddAnimation(p1, "PulseBlast")
-	ret:AddScript([[
+	local upgradesCount = 0
 	for _, tile in ipairs(Board) do
 		local pawn = Board:GetPawn(tile)
 		if pawn and pawn:GetTeam() == TEAM_ENEMY and pawn:GetWeaponCount() > 0 then
 			local weaponName = pawn:GetWeaponType(1)
-			if weaponName:sub(-1, -1) == "2" and _G[weaponName:sub(1, -2).."B"] then
-				Board:GetPawn(pawn:GetId()):RemoveWeapon(1)
-				Board:GetPawn(pawn:GetId()):AddWeaponVanilla(weaponName:sub(1, -2).."B")
-			elseif weaponName:sub(-1, -1) == "1" and _G[weaponName:sub(1, -2).."2"] then
-				Board:GetPawn(pawn:GetId()):RemoveWeapon(1)
-				Board:GetPawn(pawn:GetId()):AddWeaponVanilla(weaponName:sub(1, -2).."2")
+			if weaponName:sub(-1, -1) == "2" and _G[weaponName:sub(1, -2).."B"] or weaponName:sub(-1, -1) == "1" and _G[weaponName:sub(1, -2).."2"] then
+				upgradesCount = upgradesCount + 1
 			end
 		end
-	end]])
-	ret:AddAnimation(p1, "PulseBlast")
+	end
+	if upgradesCount == 0 then
+		local sdDamage = SpaceDamage(p1, DAMAGE_DEATH)
+		sdDamage.sAnimation = "ExploArt3"
+		ret:AddQueuedDamage(sdDamage)
+		for i = DIR_START, DIR_END do
+			for j = 1, 2 do
+				local curr = p1 + DIR_VECTORS[i] * j
+				local damage = SpaceDamage(curr, 3)
+				if j == 2 then damage.sAnimation = "explopush2" end
+				ret:AddQueuedDamage(damage)
+			end
+		end
+	else
+		ret:AddScript([[
+		for _, tile in ipairs(Board) do
+			local pawn = Board:GetPawn(tile)
+			if pawn and pawn:GetTeam() == TEAM_ENEMY and pawn:GetWeaponCount() > 0 then
+				local weaponName = pawn:GetWeaponType(1)
+				if weaponName:sub(-1, -1) == "2" and _G[weaponName:sub(1, -2).."B"] then
+					Board:GetPawn(pawn:GetId()):RemoveWeapon(1)
+					Board:GetPawn(pawn:GetId()):AddWeaponVanilla(weaponName:sub(1, -2).."B")
+				elseif weaponName:sub(-1, -1) == "1" and _G[weaponName:sub(1, -2).."2"] then
+					Board:GetPawn(pawn:GetId()):RemoveWeapon(1)
+					Board:GetPawn(pawn:GetId()):AddWeaponVanilla(weaponName:sub(1, -2).."2")
+				end
+			end
+		end]])
+		ret:AddAnimation(p1, "PulseBlast")
+	end
 	return ret
 end
 
